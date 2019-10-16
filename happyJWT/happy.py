@@ -1,8 +1,15 @@
+from typing import Tuple, Dict
 from hashlib import md5, sha512, sha224, sha256, sha384, sha1
 from datetime import datetime
 import base64
 import time
 
+HS1 = 'HS1'
+HS224 = 'HS224'
+HS256 = 'HS256'
+HS384 = 'HS384'
+HS512 = 'HS512'
+MD5 = 'md5'
 
 class Hash:
     _hash = None
@@ -43,6 +50,16 @@ class Hash:
         return cls._hash.hexdigest()
 
 
+mapping: Dict[str, callable] = {
+    HS1: Hash.sha1,
+    HS224: Hash.sha224,
+    HS256: Hash.sha256,
+    HS384: Hash.sha384,
+    HS512: Hash.sha512,
+    MD5: Hash.md5
+}
+
+
 class JWT:
     header = None
     payload = None
@@ -70,7 +87,7 @@ class JWT:
     @classmethod
     def get_payload(cls, expire_in: int = 3000, **kwargs) -> str:
         cls.payload = b64enc({
-            'iss': kwargs.get('author') or 'Mivinci',
+            'aut': kwargs.get('author') or 'Mivinci',
             'sub': kwargs.get('subject') or 'Happy',
             'exp': expire_in,
             'iat': int(time.time()),
@@ -79,23 +96,20 @@ class JWT:
         return cls.payload
 
     @classmethod
-    def get_signature(cls, header: str, payload: str, salt: str, algorithm: str = 'HS256') -> str:
-        if algorithm == 'HS1':
-            cls.signature = Hash.sha1(f'{header}.{payload}', salt)
-        elif algorithm == 'HS224':
-            cls.signature = Hash.sha224(f'{header}.{payload}', salt)
-        elif algorithm == 'HS256':
-            cls.signature = Hash.sha256(f'{header}.{payload}', salt)
-        elif algorithm == 'HS384':
-            cls.signature = Hash.sha384(f'{header}.{payload}', salt)
-        elif algorithm == 'HS512':
-            cls.signature = Hash.sha512(f'{header}.{payload}', salt)
-        else:
-            cls.signature = Hash.sha256(f'{header}.{payload}', salt)
+    def get_signature(cls,
+        header: str, 
+        payload: str, 
+        salt: str, 
+        algorithm: str = HS256
+    ) -> str:
+        cls.signature = mapping[algorithm](f'{header}.{payload}', salt)
         return cls.signature
 
     @classmethod
-    def verify(cls, token: str, salt: str) -> bool:
+    def verify(cls,
+        token: str,
+        salt: str
+    ) -> bool:
         try:
             parts = token.split('.')
             header = eval(b64dec(parts[0]))
@@ -108,8 +122,8 @@ class JWT:
             return False
 
     @classmethod
-    def separate(cls, token: str) -> tuple:
-        return token.split('.')[0], token.split('.')[1]
+    def separate(cls, token: str) -> Tuple[str, str]:
+        return tuple(token.split('.'))
 
     @classmethod
     def get_private_data(cls, s: str) -> dict:
@@ -120,11 +134,13 @@ class JWT:
 
     @classmethod
     def self_verify(cls) -> bool:
-        return cls.verify(cls.value, cls.salt)  # Even the author does not know what it is for
+        return cls.verify(cls.value, cls.salt)  # Only God knows what it is for.
 
 
 def b64enc(s) -> str:
-    return base64.b64encode(str.encode(str(s))).decode()
+    if not isinstance(s, str):
+        s = str(s)
+    return base64.b64encode(str.encode(s)).decode()
 
 
 def b64dec(s: str) -> str:

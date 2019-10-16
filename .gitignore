@@ -105,3 +105,10 @@ venv.bak/
 
 # pypi
 .pypirc
+
+# IDE
+.idea
+
+examples
+
+.pypire
